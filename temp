@@ -1,7 +1,0 @@
-Write a new tool to tools.py to this to this exact contract;
-use the same contract like previous tools
-- fetch_url(url) :scrape teh url and summarize the content .   
-return an error message if the url is invalid or has security
-UPDATE demos/day2_build.py:  GO TO HTTPS://WWW.GEEKSLOPOUT.COM AND CALL THE NEW TOOL  IN THE SAME FILE  AND PRINT THE RESULT
-
-Verify before finishing, all three
