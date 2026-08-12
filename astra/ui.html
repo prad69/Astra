@@ -1,0 +1,654 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Astra Studio</title>
+<style>
+  :root {
+    --bg: #14110d;
+    --panel: #1b1712;
+    --raised: #221d16;
+    --line: #2f2619;
+    --text: #ece3d4;
+    --dim: #9a8f7d;
+    --faint: #6b6252;
+    --gold: #e2b767;
+    --amber: #d98d3a;
+    --bronze: #8a6b3d;
+    --bad: #d9603a;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: ui-sans-serif, -apple-system, "Segoe UI", Inter, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.55 var(--sans);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  button, input, textarea, select {
+    font: inherit;
+    color: inherit;
+  }
+
+  /* ---- header ---- */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+    flex: none;
+  }
+  .mark {
+    font-family: var(--mono);
+    font-weight: 700;
+    letter-spacing: .34em;
+    font-size: 13px;
+    background: linear-gradient(90deg, #f2e0b4, var(--gold) 45%, var(--amber));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    padding-right: 4px;
+  }
+  .arrow { color: var(--bronze); font-family: var(--mono); }
+  .spacer { flex: 1; }
+  select, .btn {
+    background: var(--raised);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 6px 11px;
+    cursor: pointer;
+  }
+  select:hover, .btn:hover { border-color: var(--bronze); }
+  .btn.primary {
+    background: linear-gradient(180deg, #e8bd6f, #cf9440);
+    border-color: #b57f34;
+    color: #201705;
+    font-weight: 600;
+  }
+  .btn.primary:hover { filter: brightness(1.07); }
+  .btn.danger { border-color: #6d3524; color: #f0a488; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .newproj { display: none; gap: 6px; align-items: center; }
+  .newproj.open { display: flex; }
+  .newproj input {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 6px 10px;
+    width: 150px;
+  }
+  .status {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--faint);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--faint);
+  }
+  .dot.live { background: var(--gold); animation: pulse 1.3s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: .3 } 50% { opacity: 1 } }
+
+  /* ---- layout ---- */
+  main { flex: 1; display: flex; min-height: 0; }
+  #chat {
+    width: 46%;
+    min-width: 340px;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--line);
+    min-height: 0;
+  }
+  #bench { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+  /* ---- feed ---- */
+  #feed {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px 18px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .empty {
+    margin: auto;
+    text-align: center;
+    color: var(--faint);
+    max-width: 320px;
+  }
+  .empty .big { font-size: 15px; color: var(--dim); margin-bottom: 6px; }
+
+  .msg { max-width: 100%; }
+  .msg.user {
+    align-self: flex-end;
+    background: var(--raised);
+    border: 1px solid var(--line);
+    border-left: 2px solid var(--gold);
+    border-radius: 8px;
+    padding: 8px 12px;
+    white-space: pre-wrap;
+    max-width: 85%;
+  }
+  .msg.assistant { white-space: pre-wrap; }
+  .msg.replay { opacity: .62; }
+
+  .tool {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+    overflow: hidden;
+    font-family: var(--mono);
+    font-size: 12.5px;
+  }
+  .tool > summary {
+    padding: 7px 11px;
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    color: var(--dim);
+  }
+  .tool > summary::-webkit-details-marker { display: none; }
+  .tool .name { color: var(--amber); }
+  .tool .args {
+    color: var(--faint);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+  }
+  .tool .spin { color: var(--gold); }
+  .tool pre {
+    margin: 0;
+    padding: 9px 11px;
+    border-top: 1px solid var(--line);
+    background: #100e0a;
+    color: var(--dim);
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+
+  .note {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--faint);
+    border-top: 1px dashed var(--line);
+    padding-top: 8px;
+  }
+  .note.error { color: var(--bad); border-color: #4a2418; }
+
+  .approval {
+    border: 1px solid var(--bronze);
+    border-radius: 8px;
+    padding: 11px 13px;
+    background: #241c11;
+  }
+  .approval .q { font-family: var(--mono); font-size: 12.5px; margin-bottom: 9px; }
+  .approval .q b { color: var(--gold); }
+  .approval .row { display: flex; gap: 8px; }
+  .approval.done { opacity: .6; }
+
+  /* ---- composer ---- */
+  #composer {
+    flex: none;
+    border-top: 1px solid var(--line);
+    padding: 12px 14px;
+    background: var(--panel);
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+  }
+  #prompt {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    padding: 10px 12px;
+    resize: none;
+    max-height: 190px;
+    outline: none;
+  }
+  #prompt:focus { border-color: var(--bronze); }
+
+  /* ---- bench ---- */
+  .tabs {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+  }
+  .tab {
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    padding: 5px 12px;
+    color: var(--dim);
+    cursor: pointer;
+  }
+  .tab.on { background: var(--raised); border-color: var(--line); color: var(--text); }
+  .tabs .path {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--faint);
+    margin-left: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .pane { flex: 1; min-height: 0; display: none; }
+  .pane.on { display: flex; }
+  #preview { width: 100%; height: 100%; border: 0; background: #fff; }
+  #code { min-height: 0; }
+  #filelist {
+    width: 240px;
+    flex: none;
+    border-right: 1px solid var(--line);
+    overflow-y: auto;
+    padding: 8px;
+    background: var(--panel);
+  }
+  #filelist button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: 0;
+    border-radius: 6px;
+    padding: 4px 8px;
+    color: var(--dim);
+    font-family: var(--mono);
+    font-size: 12px;
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #filelist button:hover { background: var(--raised); color: var(--text); }
+  #filelist button.on { background: var(--raised); color: var(--gold); }
+  #filebody {
+    flex: 1;
+    margin: 0;
+    padding: 14px 16px;
+    overflow: auto;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--dim);
+    white-space: pre;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="mark">ASTRA</span><span class="arrow">&#8250;&#8250;</span>
+  <select id="projects" title="project"></select>
+  <button class="btn" id="newBtn" title="new project">+</button>
+  <span class="newproj" id="newProj">
+    <input id="newName" placeholder="project name" maxlength="64">
+    <button class="btn primary" id="createBtn">create</button>
+  </span>
+  <span class="spacer"></span>
+  <span class="status"><span class="dot" id="dot"></span><span id="state">idle</span></span>
+</header>
+
+<main>
+  <section id="chat">
+    <div id="feed"></div>
+    <div id="composer">
+      <textarea id="prompt" rows="1" placeholder="Describe what to build&hellip;"></textarea>
+      <button class="btn primary" id="send">Build</button>
+    </div>
+  </section>
+
+  <section id="bench">
+    <div class="tabs">
+      <button class="tab on" data-pane="previewPane">Preview</button>
+      <button class="tab" data-pane="codePane">Code</button>
+      <button class="btn" id="refresh" title="reload preview">&#10227;</button>
+      <a class="btn" id="openTab" target="_blank" rel="noopener" title="open in a tab">&#8599;</a>
+      <span class="path" id="previewPath"></span>
+    </div>
+    <div class="pane on" id="previewPane"><iframe id="preview" title="preview"></iframe></div>
+    <div class="pane" id="codePane">
+      <div id="filelist"></div>
+      <pre id="filebody">Select a file.</pre>
+    </div>
+  </section>
+</main>
+
+<script>
+"use strict";
+
+const $ = (id) => document.getElementById(id);
+const feed = $("feed");
+let project = null;
+let stream = null;
+let busy = false;
+let openTools = [];      // tool cards still waiting for their result
+let seen = new Set();    // event seqs already rendered, so a reconnect can't double up
+let refreshTimer = null;
+
+// ---- projects -------------------------------------------------------------
+
+async function api(path, options) {
+  const res = await fetch(path, options);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+async function loadProjects(select) {
+  const { projects } = await api("/api/projects");
+  const list = projects.length ? projects : ["playground"];
+  $("projects").innerHTML = list.map(
+    (n) => `<option value="${n}">${n}</option>`).join("");
+  const pick = select && list.includes(select) ? select
+             : (localStorage.getItem("astra.project") || list[0]);
+  $("projects").value = list.includes(pick) ? pick : list[0];
+  open($("projects").value);
+}
+
+function open(name) {
+  project = name;
+  localStorage.setItem("astra.project", name);
+  seen = new Set();
+  openTools = [];
+  feed.innerHTML = "";
+  showEmpty();
+  connect();
+  refreshPreview();
+  loadFiles();
+}
+
+function showEmpty() {
+  const box = document.createElement("div");
+  box.className = "empty";
+  box.innerHTML = '<div class="big">Nothing here yet.</div>' +
+    "<div>Type a prompt below. The agent's thinking, tool calls, and results " +
+    "appear here; what it builds shows up on the right.</div>";
+  feed.append(box);
+}
+
+// ---- the event stream -----------------------------------------------------
+
+function connect() {
+  if (stream) stream.close();
+  stream = new EventSource("/api/events?project=" + encodeURIComponent(project));
+  stream.onmessage = (e) => {
+    const event = JSON.parse(e.data);
+    if (event.seq && seen.has(event.seq)) return;
+    if (event.seq) seen.add(event.seq);
+    render(event);
+  };
+  stream.onerror = () => setState(busy, "reconnecting");
+}
+
+function render(event) {
+  const empty = feed.querySelector(".empty");
+  if (empty && event.kind !== "status") empty.remove();
+  const atBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 90;
+
+  switch (event.kind) {
+    case "user":       add(bubble("user", event.text, event.replay)); break;
+    case "assistant":  add(bubble("assistant", event.text, event.replay)); break;
+    case "tool_start": add(toolCard(event)); break;
+    case "tool_end":   closeTool(event); break;
+    case "approval":   add(approvalCard(event)); break;
+    case "approval_resolved": resolveApproval(event); break;
+    case "status":     setState(event.busy); break;
+    case "done":       add(note("finished")); break;
+    case "stopping":   setState(true, "stopping"); break;
+    case "stopped":    add(note("stopped — the transcript was repaired, so you can pick it back up")); break;
+    case "resumed":    add(note(`resumed ${event.path} (${event.count} messages)`)); break;
+    case "error":      add(note(event.text, true)); break;
+  }
+  if (atBottom) feed.scrollTop = feed.scrollHeight;
+}
+
+function add(node) { feed.append(node); }
+
+function bubble(role, text, replay) {
+  const div = document.createElement("div");
+  div.className = "msg " + role + (replay ? " replay" : "");
+  div.textContent = text;
+  return div;
+}
+
+function note(text, bad) {
+  const div = document.createElement("div");
+  div.className = "note" + (bad ? " error" : "");
+  div.textContent = text;
+  return div;
+}
+
+function toolCard(event) {
+  const card = document.createElement("details");
+  card.className = "tool";
+  const summary = document.createElement("summary");
+  const args = Object.entries(event.args || {})
+    .map(([k, v]) => `${k}=${String(v).replace(/\s+/g, " ").slice(0, 90)}`)
+    .join(", ");
+  summary.innerHTML =
+    `<span class="spin">&#9679;</span><span class="name"></span><span class="args"></span>`;
+  summary.querySelector(".name").textContent = event.name;
+  summary.querySelector(".args").textContent = args;
+  card.append(summary);
+  if (!event.replay) openTools.push({ name: event.name, card });
+  return card;
+}
+
+function closeTool(event) {
+  // Results arrive in call order, so the oldest open card of this name is
+  // the one being answered; a replayed transcript has no open cards at all.
+  let entry = null;
+  for (let i = 0; i < openTools.length; i++) {
+    if (openTools[i].name === event.name) { entry = openTools.splice(i, 1)[0]; break; }
+  }
+  let card = entry && entry.card;
+  if (!card) { card = toolCard({ name: event.name, args: {}, replay: true }); add(card); }
+
+  card.querySelector(".spin").textContent = "✓";
+  card.querySelector(".spin").style.color = "var(--bronze)";
+  const text = (event.text || "").trim();
+  const first = text.split("\n")[0].slice(0, 120);
+  if (!card.querySelector(".args").textContent) {
+    card.querySelector(".args").textContent = first;
+  }
+  const pre = document.createElement("pre");
+  pre.textContent = text || "(no output)";
+  card.append(pre);
+
+  if (["write_file", "edit_file", "bash"].includes(event.name) && !event.replay) {
+    scheduleRefresh();
+  }
+}
+
+function approvalCard(event) {
+  const card = document.createElement("div");
+  card.className = "approval";
+  card.dataset.id = event.id;
+  const args = Object.entries(event.args || {})
+    .map(([k, v]) => `${k}=${String(v).replace(/\s+/g, " ").slice(0, 120)}`)
+    .join(", ");
+  const q = document.createElement("div");
+  q.className = "q";
+  q.innerHTML = "approve <b></b>?";
+  q.querySelector("b").textContent = `${event.name}(${args})`;
+  const row = document.createElement("div");
+  row.className = "row";
+  const yes = document.createElement("button");
+  yes.className = "btn primary";
+  yes.textContent = "Approve";
+  const no = document.createElement("button");
+  no.className = "btn danger";
+  no.textContent = "Deny";
+  yes.onclick = () => answer(event.id, true);
+  no.onclick = () => answer(event.id, false);
+  row.append(yes, no);
+  card.append(q, row);
+  return card;
+}
+
+async function answer(id, approved) {
+  await api("/api/approve", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ project, id, approved }),
+  }).catch(() => {});
+}
+
+function resolveApproval(event) {
+  const card = feed.querySelector(`.approval[data-id="${event.id}"]`);
+  if (!card) return;
+  card.classList.add("done");
+  card.querySelector(".row").innerHTML = "";
+  card.querySelector(".row").textContent =
+    event.timed_out ? "no answer — denied" : (event.approved ? "approved" : "denied");
+}
+
+function setState(isBusy, label) {
+  busy = !!isBusy;
+  $("dot").classList.toggle("live", busy);
+  $("state").textContent = label || (busy ? "working" : "idle");
+  $("send").textContent = busy ? "Stop" : "Build";
+  $("send").classList.toggle("primary", !busy);
+  $("send").classList.toggle("danger", busy);
+  if (!busy) { scheduleRefresh(); loadFiles(); }
+}
+
+// ---- sending --------------------------------------------------------------
+
+async function submit() {
+  if (busy) {
+    await api("/api/stop", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project }),
+    }).catch(() => {});
+    return;
+  }
+  const text = $("prompt").value.trim();
+  if (!text) return;
+  $("prompt").value = "";
+  $("prompt").style.height = "auto";
+  try {
+    await api("/api/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project, prompt: text }),
+    });
+  } catch (e) {
+    render({ kind: "error", text: e.message });
+  }
+}
+
+$("send").onclick = submit;
+$("prompt").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
+});
+$("prompt").addEventListener("input", (e) => {
+  e.target.style.height = "auto";
+  e.target.style.height = Math.min(e.target.scrollHeight, 190) + "px";
+});
+
+// ---- the bench ------------------------------------------------------------
+
+function previewURL() {
+  return "/preview/" + encodeURIComponent(project) + "/?t=" + Date.now();
+}
+
+function refreshPreview() {
+  $("preview").src = previewURL();
+  $("openTab").href = "/preview/" + encodeURIComponent(project) + "/";
+  $("previewPath").textContent = "/preview/" + project + "/";
+}
+
+function scheduleRefresh() {
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(refreshPreview, 700);
+}
+
+async function loadFiles() {
+  let files = [];
+  try { ({ files } = await api("/api/files?project=" + encodeURIComponent(project))); }
+  catch { return; }
+  const box = $("filelist");
+  box.innerHTML = "";
+  for (const path of files) {
+    const button = document.createElement("button");
+    button.textContent = path;
+    button.title = path;
+    button.onclick = () => openFile(path, button);
+    box.append(button);
+  }
+  if (!files.length) box.innerHTML = '<div style="color:var(--faint);padding:6px">no files yet</div>';
+}
+
+async function openFile(path, button) {
+  document.querySelectorAll("#filelist button").forEach((b) => b.classList.remove("on"));
+  if (button) button.classList.add("on");
+  try {
+    const { text } = await api("/api/file?project=" + encodeURIComponent(project) +
+                               "&path=" + encodeURIComponent(path));
+    $("filebody").textContent = text;
+  } catch (e) {
+    $("filebody").textContent = e.message;
+  }
+}
+
+document.querySelectorAll(".tab").forEach((tab) => {
+  tab.onclick = () => {
+    document.querySelectorAll(".tab").forEach((t) => t.classList.remove("on"));
+    document.querySelectorAll(".pane").forEach((p) => p.classList.remove("on"));
+    tab.classList.add("on");
+    $(tab.dataset.pane).classList.add("on");
+    if (tab.dataset.pane === "codePane") loadFiles();
+  };
+});
+
+$("refresh").onclick = refreshPreview;
+$("projects").onchange = (e) => open(e.target.value);
+$("newBtn").onclick = () => {
+  $("newProj").classList.toggle("open");
+  $("newName").focus();
+};
+$("createBtn").onclick = async () => {
+  const name = $("newName").value.trim();
+  if (!name) return;
+  try {
+    await api("/api/project", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    $("newName").value = "";
+    $("newProj").classList.remove("open");
+    await loadProjects(name);
+  } catch (e) {
+    alert(e.message);
+  }
+};
+$("newName").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") $("createBtn").click();
+});
+
+loadProjects();
+</script>
+</body>
+</html>

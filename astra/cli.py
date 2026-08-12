@@ -26,6 +26,12 @@ Design rules this file embodies:
 import argparse
 import os
 import sys
+from pathlib import Path
+
+# Enable running this file directly as a script
+if not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    __package__ = "astra"
 
 from .harness import Harness
 from .security import Policy
@@ -37,11 +43,149 @@ RESET = "\033[0m"
 ARG_CLIP = 70
 RESULT_CLIP = 160
 
-BANNER = """{bold}Astra{reset}
-  model {model}
-  mode  {mode}
-  jail  {workdir}
+# The wordmark, cut one letter at a time so the serifs stay under control.
+# Five rows of light rule: letters chiselled into stone rather than lit on
+# an arcade cabinet. Each glyph is a fixed 8 columns, so the row strings
+# are just the glyphs run together.
+_SERIF = {
+    "A": ["   ╱╲   ", "  ╱  ╲  ", " ╱────╲ ", " │    │ ", " ┴    ┴ "],
+    "S": ["╭─────┐ ", "│       ", "╰─────╮ ", "      │ ", "└─────╯ "],
+    "T": ["┌──┬───┐", "   │    ", "   │    ", "   │    ", "  ╶┴╴   "],
+    "R": [" ┌────╮ ", " │    │ ", " ├────╯ ", " │  ╲   ", " ┴   ╲  "],
+}
+
+_SERIF_ASCII = {
+    "A": ["   /\\   ", "  /  \\  ", " /----\\ ", " |    | ", " '    ' "],
+    "S": [",-----. ", "|       ", "'-----. ", "      | ", "'-----' "],
+    "T": [".--,---.", "   |    ", "   |    ", "   |    ", "  -'-   "],
+    "R": [" ,----. ", " |    | ", " |----' ", " |  \\   ", " '   \\  "],
+}
+
+
+def _cut(glyphs):
+    """Set the five rows of ASTRA from a glyph table."""
+    return ["".join(glyphs[letter][row] for letter in "ASTRA") for row in range(5)]
+
+
+WORDMARK = _cut(_SERIF)
+
+# ASCII stand-in for terminals that cannot encode the rule glyphs.
+WORDMARK_ASCII = _cut(_SERIF_ASCII)
+
+# 256-color ramp: lit from above, pale gold down into bronze.
+WORDMARK_COLORS = [230, 222, 221, 178, 172]
+
+# An astra is a divine weapon, loosed from a drawn bow with a mantra. The
+# emblem is that instant: limbs bent, string hauled back to a point, the
+# arrow nocked and waiting on the word. Column layout, left to right --
+# fletching at 5, nock at 6, the string converging from the limb tips,
+# the grip at 17, the head just past it.
+EMBLEM = [
+    "                      ╲",
+    "                  ╱╱╱╱ ╲╲",
+    "              ╱╱╱╱       ╲",
+    "          ╱╱╱╱            ┃",
+    "       ≪──────────────────╂───▶",
+    "          ╲╲╲╲            ┃",
+    "              ╲╲╲╲       ╱",
+    "                  ╲╲╲╲ ╱╱",
+    "                      ╱",
+]
+
+EMBLEM_ASCII = [
+    "                      \\",
+    "                  //// \\\\",
+    "              ////       \\",
+    "          ////            |",
+    "       <------------------+--->",
+    "          \\\\\\\\            |",
+    "              \\\\\\\\       /",
+    "                  \\\\\\\\ //",
+    "                      /",
+]
+
+# Row shades for the emblem: dark bronze at the limb tips, glowing toward
+# the nocked arrow at the center.
+EMBLEM_COLORS = [94, 130, 137, 172, 179, 172, 137, 130, 94]
+
+# Index of the arrow row, and the ramp its shaft walks nock-to-tip: the
+# head is the hottest thing on the screen, which is where a drawn bow
+# puts your eye too.
+SHAFT_ROW = 4
+SHAFT_COLORS = [137, 172, 214, 220, 229]
+
+TAGLINE = "a small agent harness"
+
+BANNER_INFO = """  {dim}model{reset} {model}
+  {dim}mode {reset} {mode}
+  {dim}jail {reset} {workdir}
 {dim}Ctrl-D to exit, Ctrl-C to interrupt a run.{reset}"""
+
+
+def _unicode_ok(stream=None):
+    """True when the output encoding can carry the block-glyph wordmark."""
+    stream = stream or sys.stdout
+    encoding = getattr(stream, "encoding", None) or ""
+    if "utf" not in encoding.lower():
+        return False
+    try:
+        "".join(WORDMARK + EMBLEM).encode(encoding)
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
+def _gradient(text, colors):
+    """Color a line left-to-right by walking a 256-color ramp across it."""
+    out = []
+    for i, char in enumerate(text):
+        shade = colors[min(i * len(colors) // max(len(text), 1), len(colors) - 1)]
+        out.append(f"\033[1;38;5;{shade}m{char}")
+    return "".join(out) + RESET
+
+
+def render_banner(model, mode, workdir, color=None):
+    """Build the startup splash: the astra, the wordmark, then the settings."""
+    color = _color() if color is None else color
+    unicode_ok = _unicode_ok()
+    art = WORDMARK if unicode_ok else WORDMARK_ASCII
+    emblem = EMBLEM if unicode_ok else EMBLEM_ASCII
+    emblem_width = max(len(row) for row in emblem)
+    width = max(len(art[0]), len(TAGLINE), emblem_width)
+
+    def centered(row):
+        return " " * ((width - len(row)) // 2) + row
+
+    # The emblem is one drawing, so every row shifts by the same amount --
+    # centering rows individually would pull the bow apart.
+    emblem_pad = " " * ((width - emblem_width) // 2)
+
+    lines = []
+    for i, row in enumerate(emblem):
+        if not color:
+            lines.append((emblem_pad + row).rstrip())
+        elif i == SHAFT_ROW:
+            # Only the drawn arrow walks the ramp -- indent it, don't paint it.
+            indent = len(row) - len(row.lstrip())
+            lines.append(emblem_pad + " " * indent
+                         + _gradient(row.lstrip(), SHAFT_COLORS))
+        else:
+            lines.append(f"{emblem_pad}\033[1;38;5;{EMBLEM_COLORS[i]}m{row}{RESET}")
+    lines.append("")
+
+    for i, row in enumerate(art):
+        if color:
+            shade = WORDMARK_COLORS[i * len(WORDMARK_COLORS) // len(art)]
+            lines.append(f"\033[1;38;5;{shade}m{centered(row)}{RESET}")
+        else:
+            lines.append(centered(row))
+
+    lines.append(f"{DIM if color else ''}{centered(TAGLINE)}{RESET if color else ''}")
+    lines.append("")
+    lines.append(BANNER_INFO.format(
+        dim=DIM if color else "", reset=RESET if color else "",
+        model=model, mode=mode, workdir=workdir))
+    return "\n".join(lines)
 
 
 def _color(stream=None):
@@ -107,6 +251,14 @@ def build_parser():
                         help="continue the most recent session in the workdir")
     parser.add_argument("--max-turns", type=int, default=120,
                         help="turn limit for a single task (default: 120)")
+    parser.add_argument("--web", action="store_true",
+                        help="serve the browser studio instead of a prompt loop")
+    parser.add_argument("--projects", default="./projects",
+                        help="directory holding studio projects (default: ./projects)")
+    parser.add_argument("--host", default="127.0.0.1",
+                        help="address the studio binds to (default: 127.0.0.1)")
+    parser.add_argument("--port", type=int, default=7777,
+                        help="port the studio listens on (default: 7777)")
     return parser
 
 
@@ -115,6 +267,15 @@ def main(argv=None):
     args = build_parser().parse_args(argv)
     headless = args.prompt is not None
     mode = args.mode or ("yolo" if headless else "safe")
+
+    if args.web:
+        # A browser can answer "approve this?" through the event stream, but
+        # a studio is for building, so the default matches -p rather than
+        # the interactive prompt loop.
+        from . import web
+        return web.serve(root=args.projects, host=args.host, port=args.port,
+                         model=args.model, mode=args.mode or "yolo",
+                         max_turns=args.max_turns)
 
     agent = Harness(
         workdir=args.workdir,
@@ -137,11 +298,7 @@ def main(argv=None):
 
 def interactive(agent, mode):
     """Run the prompt loop until Ctrl-D."""
-    color = _color()
-    print(BANNER.format(
-        bold=BOLD if color else "", reset=RESET if color else "",
-        dim=DIM if color else "",
-        model=agent.model, mode=mode, workdir=agent.workdir))
+    print(render_banner(agent.model, mode, agent.workdir))
 
     while True:
         try:
@@ -167,3 +324,7 @@ def interactive(agent, mode):
             print(f"\nERROR: {type(e).__name__}: {e}")
 
     return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

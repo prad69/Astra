@@ -1,6 +1,6 @@
 # Astra
 
-The smallest agent harness that is still a real one. Twelve modules, 1,430
+The smallest agent harness that is still a real one. Thirteen modules, 2,184
 lines, and zero dependencies — every import is the Python standard library,
 including the HTTP client that talks to the API.
 
@@ -24,7 +24,7 @@ export ANTHROPIC_API_KEY=sk-...        # or ASTRA_API_KEY
 export ASTRA_MODEL=claude-sonnet-5  # optional; this is the default
 ```
 
-Three forms:
+Four forms:
 
 ```bash
 # 1. interactive — a prompt loop, safe mode, every write asks first
@@ -35,10 +35,13 @@ python3 -m astra -d ./project -p "Fix the failing test in tests/test_api.py"
 
 # 3. resume — pick up the most recent session, however it ended
 python3 -m astra -d ./project --resume
+
+# 4. studio — browser UI for running tasks and previewing output
+python3 -m astra --web --projects ./projects
 ```
 
 Flags: `-p/--prompt`, `-d/--workdir`, `-m/--model`, `--mode {safe,yolo,read-only}`,
-`--resume`, `--max-turns`.
+`--resume`, `--max-turns`, `--web`, `--projects`, `--host`, `--port`.
 
 The mode default depends on how you invoke it. Interactively it is `safe`,
 because someone is there to answer "approve this?". With `-p` it is `yolo`,
@@ -56,8 +59,8 @@ bypasses them.
 | `provider.py` · `loop.py` | 236 | The turn cycle, and the one file that knows the wire format |
 | `tools.py` · `security.py` | 382 | Tools from function signatures, a path jail, a policy gate |
 | `context.py` · `memory.py` · `skills.py` | 279 | Compaction, `ASTRA.md`, loadable skills |
-| `session.py` · `subagent.py` · `harness.py` | 322 | Durable sessions, crash repair, delegation, composition |
-| `cli.py` · `fleet.py` | 211 | The front door, and many agents at once |
+| `session.py` · `subagent.py` · `harness.py` | 332 | Durable sessions, crash repair, delegation, composition |
+| `cli.py` · `fleet.py` · `web.py` | 955 | The front doors (CLI, fleet runner, and browser studio) |
 
 Each component plugs into seams in the loop. `loop.py` carries
 `before_turn` which is filled by compaction; `before_tool`

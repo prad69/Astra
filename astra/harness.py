@@ -142,6 +142,16 @@ class Harness:
             session.append(self.session_path, message)
         self._recorded = len(self.messages)
 
+    def flush(self):
+        """Write any messages the session file does not have yet.
+
+        run() records as it goes, so this exists for the callers that end
+        a run from outside the loop -- an interrupt, a stop button -- and
+        then repair the transcript. Without it those repairs would live
+        only in memory and the session on disk would stay unreplayable.
+        """
+        self._record()
+
     def run(self, task):
         """Run one task to completion and return the agent's final answer."""
         if self.persist and self.session_path is None:
